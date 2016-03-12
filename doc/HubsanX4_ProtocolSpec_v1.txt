@@ -1,0 +1,537 @@
+Remote Control Protocol Library                                           J.Hung
+Entry 002                                                        www.jimhung.com
+Category: 2.4GHz Quadcopter                                        November 2014
+
+
+
+		    Hubsan X4 H107L Quadcopter Control Protocol
+		   	    	Version 1.0
+		
+
+Preface
+
+	This document specifies an open protocol description for the
+	Hubsan X4 remote-controlled Quadcopter toy. It is provided
+	freely for educational purposes and without any claim to
+	ownership of the design or associated intellectual property.
+	
+	If you are the owner of the design and would like me to
+	remove it from the protocol library, email me at:
+	jimhung[at]gmail[dot]com and I will comply asap.
+	
+Version History
+
+	Version 1.0 - October 4 2014
+	  - Initial version.
+	
+	
+Table of Contents
+
+	1.	Introduction                                              
+	2.	Physical Specification
+	2.1.	- Physical Communications
+	2.2. - AMIC A7105 Initialization
+	2.2.1. - Tranceiver Configuration
+	2.2.2. - IF Filter Bank Calibration
+	2.2.3. - VCO Bank Calibration
+	2.2.4. - Channel Selection
+	3.	Binding
+	3.1.	- Binding Choreography
+	3.1.1. Level 1 - Discovery
+	3.1.1.1. Discovery Packet Structure
+	3.1.1.2. Discovery Packet Interval
+	3.1.2. Level 2 - Handshake 1
+	3.1.3. Level 3 - Session ID
+	3.1.4. Level 4 - Handshake 2
+	3.1.4.1. Handshake 2 Packet Structure
+	3.1.5. Level 5 - Tx/Rx Power
+	3.1.6. Level 6 - Handshake 3
+	3.1.6.1. Handshake 3 HANDSET Packet Structure
+	3.1.6.2. Handshake 3 QUADCOPTER Packet Structure
+	4. Flight Control Specification
+	4.1. Flight Control Packet Timing Characteristics
+	4.2. Flight Control Packet Structure
+	4.3. Flight Control Definition
+	4.3.1. Throttle
+	4.3.2. Yaw
+	4.3.2.1. Yaw (Default mode)
+	4.3.2.2. Yaw (Expert mode)
+	4.3.3. Pitch
+	4.3.3.1. Pitch (Default mode)
+	4.3.3.2. Pitch (Expert mode)
+	4.3.4. Roll
+	4.3.4.1. Roll (Default mode)
+	4.3.4.2. Roll (Expert mode)
+	4.3.5. Trim Control
+	4.3.6. Additional Control Flags
+	4.3.6.1. Toggle Quadcopter LEDs on/off   
+   
+
+1. Introduction
+
+	This protocol specification was determined by reverse
+	engineering the SPI communications between the H107L controller's
+	MCU and Tranceiver (AMIC A7105). These signals were sniffed using a
+	Salea Logic logic-analyzer and manually decoded to determine
+	their meaning.
+	
+
+2. Communications Specification
+
+	The Hubsan H107L is a 6-axis gyroscopically stabilized 
+	micro-Quadcopter that utilizes 2.4GHz radio communications
+	for control via a battery-operated handset.
+
+	The control communications are open-loop and solely consists of
+	one-way traffic. Two flight modes are available: Anti-Flip
+	(regular) and Expert (all flight controls unlocked).
+	
+2.1. Physical Communications
+
+	The H107L utilizes an AMIC A7105 ISM-band 2.4GHz FSK/GFSK 
+	wireless transceiver for the controller and quadcopter.
+
+2.2. AMIC A7105 Initialization
+
+	The A7105 Transceiver requires the following initialization
+	parameters in order to communicate with the Quadcopter.
+
+	The initialization routine summary is as follows:
+
+	1. Tranceiver Configuration
+	2. IF Filter Bank Calibration
+	3. VCO Bank Calibration
+	4. VCO Bank Calibration (again?)
+	5. Channel Selection
+
+2.2.1. Tranceiver Configuration
+
+	The following commands should be sent to the A7105 prior to
+	calibration tests:
+
+	- Issue full reset command to A7105.
+	- Set ID Code Register (x06) to "55 20 10 41".
+	- Set Mode Control Register (x01) Auto RSSI measurement, 
+	  Auto IF Offset, FIFO mode enabled.
+	- Set Calibration Control Reg (x02) - Reset.
+	- Set FIFO Register 1 (x03) - Set FIFO length to 16 bytes
+	- Set FIFO Register 2 (x04) - Not sure!
+	- Set RC OSC Reg 1 (x07) - Reset.
+	- Set RC OSC Reg 2 (x08) - Reset.
+	- Set RC OSC Reg 3 (x09) - RC-oscillator Enable.
+	- Set CKO Pin Control Register (x0A) - Disable CLK out, TX clock,
+	  RX Recovery CLK, Non-Inverted CLK, Hi-Z CLK Out, Non-Inverted 
+	  SPI Pin - CLK.
+	- Set GIO1 Pin Control Register (x0B) - Reset.
+	- Set GIO2 Pin Control Register (x0C) - GIO2 Pin Enable.
+	- Set Clock Register (x0D) - Use Crystal Oscillator,
+	  CLK divider = /2.
+	- Set Data Rate Register (x0E) - Set data rate to 25kbps.
+	- Set PLL Register 1 (x0F) - Set Channel Offset to 80.
+	- Set PLL Register 2 (x10) - Reset.
+	- Set PLL Register 3 (x11) - Reset.
+	- Set PLL Register 4 (x12) - Reset.
+	- Set PLL Register 5 (x13) - Autofrequency Compensation.
+	- Set TX Register 1 (x14) - Reset.
+	- Set TX Register 2 (x15) - Frequency Deviation: 186KHz
+	- Set Delay Register 1 (x16) - Reset.
+	- Set Delay Register 2 (x17) - 200us settling delay, 10us AGC 
+	  delay settling, 10us RSSI measurement delay.
+	- Set RX Register (x18) - BPF bandwidth = 500 KHz.
+	- Set RX Gain Register 1 (x19) - Manual VGA, Mixer Gain: 24dB, 
+	  LNA gain: 24dB.
+	- Set RX Gain Register 2 (x1A) - Internal Use?
+	- Set RX Gain Register 3 (x1B) - Internal Use?
+	- Set RX Gain Register 4 (x1C) - Reserved.
+	- Set RSSI Threshold Register (x1D) to x32.
+	- Set ADC Control Register (x1E) - RSSI Margin: 20, RSSI 
+	  Measurement continue, FSARS: 4 MHZ, XADS = Convert RSS, RSSI 
+	  measurement selected, RSSI continuous mode.
+	- Set Code Register 1 (x1F) - Reset.
+	- Set Code Register 2 (x20) - Demodulator avg mode, 2 bit ID 
+	  error code tolerance, 16bit  preamble detect.
+	- Set Code Register 3 (x21) - Encryption Key (XOR...) - All zeroes 
+	  (Data Whitening not enabled in register x1F.
+	- Set IF Calibration Register (x22) - Autocalibrate.
+	- Set VCO Current Calibration Reg (x24) - Autocalibrate.
+	- Set VCO Single band Calibration Reg (x25) - Autocalibrate.
+	- Set VCO Single band Calibration Reg 2 (x26) - Upper threshold:
+	  -1.3V, Lower threshold: 0.4V
+	- Set Battery Detect Register (x27) - 2V battery detect
+	  threshold.
+	- Set TX Test Register (x28) - Reset.
+	- Set RX DEM test Reg (x29) - Internal Use?
+	- Set RX DEM test Reg 2 (x2A) - Reset.
+	- Set Charge Pump Current Reg (x2B) - 2.0mA.
+	- Set Crystal Test Reg (x2C) - Internal Use?
+	- Set PLL test Register (x2D) - Internal Use?
+	- Set VCO test Reg (x2E) - Internal Use?
+	- Set VCO test reg 2 (x2F) - Internal Use?
+	- Set IFAT reg (x30) - Internal Use?
+	- Set RSCALE reg (x31) - Reset.
+
+	2.2.2. IF Filter Bank Calibration
+
+	The IF Filter Bank Calibration should be performed as per section
+	15.2 of the A7105 Datasheet.
+
+	2.2.3. VCO Bank Calibration
+
+	The VCO Bank Calibration should be performed as per section 15.3
+	and 15.4 of the A7105 Datasheet.
+
+	2.2.4. Channel Selection
+
+	The Hubsan X4 can operate on the following 12 A7015 Channels:
+
+	- 0x14
+	- 0x1E
+	- 0x28
+	- 0x32
+	- 0x3C
+	- 0x46
+	- 0x50
+	- 0x5A
+	- 0x64
+	- 0x6E
+	- 0x78
+	- 0x82
+
+	The selected channel should use the channel with the highest
+	average (mean) RSSI of 12 samples per channel.
+
+3. Binding
+
+	The Hubsan H107L requires the controller to complete an
+	escalating binding handshake before it will respond to control
+	packets.
+
+3.1. Binding Choreography
+
+	The Binding Choreography contains 6 discrete stages:
+
+	1. Level 1 - Discovery
+	2. Level 2 - Handshake 1
+	3. Level 3 - Session ID
+	4. Level 4 - Handshake 2
+	5. Level 5 - Tx/Rx Power
+	6. Level 6 - Handshake 3
+
+3.1.1. Level 1 - Discovery
+
+	Discovery packets must be broadcast on the selected channel
+	until an X4 Quadcopter responds with an acknowledgement packet.
+
+3.1.1.1. Discovery Packet Structure
+
+	The Discovery packet is 16 bytes long and is terminated with
+	the checksum (see section X).
+
+		                        1         
+		    0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 
+		   +-+-+-------+-----------------+-+
+		   |A|B|   C   |         D       |E|
+		   +-+-+-------+-----------------+-+
+
+		16-bit Discovery Packet Data Structure
+		              Figure 1.
+
+	Tag  Len  Description
+	---  ---  -----------
+	 A    1   Handshake State. Discovery Packets start at \x01.
+	 B    1   The selected channel ID (see section 2.2.4).
+	 C    4   Random 4-byte session ID.
+	 D    9   NULL - unused.
+	 E    1   CHECKSUM (see section X)
+
+	This packet structure is used for Level 1, Level 2, and Level
+	3 binding stages.
+
+3.1.1.2. Discovery Packet Interval
+
+	The transmission interval for Discovery packets is 15ms.
+
+3.1.2. Level 2 - Handshake 1
+
+	Upon receiving the controller's discovery packet, the
+	quadcopter will respond with a discovery packet containing
+	an incremented Handshake State byte (Section 3.1.1.1.)
+
+	The controller will respond with another discovery packet
+	with a further incremented Handshake status byte. Finally,
+	the quadcopter will respond, incrementing the status byte
+	once again to \x04.
+
+	Example:
+
+	Stage         Sent By      Handshake State (byte 0)
+	-----------   ----------   ------------------------
+	Discovery     Controller   \x01
+	...           ...          ...
+	Discovery     Controller   \x01
+	Handshake 1   Quadcopter   \x02
+	Handshake 1   Controller   \x03
+	Handshake 1   Quadcopter   \x04
+	** Handshake 1 Complete **
+
+    This handshake consists of 4 packets including the original
+    discovery packet; 2 from the handset and 2 from the quadcopter.
+
+3.1.3. Level 3 - Session ID
+
+	Once binding Level 2 has completed, the controller must
+	change the transceiver's hardware ID (SPI register x06)
+	to the random 4 byte session ID contained in the discovery
+	packet.
+
+	This handshake stage does not consist of any transmitted
+	packets.
+
+3.1.4. Level 4 - Handshake 2
+
+	With the ID Code register set, the Discovery packet is sent
+	by the handset again. When the quadcopter responds, it
+	increments the Handshake State byte (byte 0) as with Handshake
+	1, however it sets bytes 6 and 7 to \x03 and \x07 respectively.
+
+3.1.4.1. Handshake 2 Packet Structure
+
+		                     1         
+		 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 
+		+-+-+-------+-----------------+-+
+		|A|B|   C   |D|E|      F      |G|
+		+-+-+-------+-----------------+-+
+
+	Level 2 Quadcopter Binding Packet Data Structure
+				Figure 2.
+
+	Tag  Len  Description
+	---  ---  -----------
+	A    1	  Handshake State. Discovery Packets start at \x01.
+	B    1	  The selected channel ID (see section 2.2.4).
+	C    4	  Random 4-byte session ID.
+	D    1	  Always \x03 in testing.
+	E    1   Always \x07 in testing.
+	F    7   NULL - unused.
+	G    1   CHECKSUM (see section X)
+
+	This handshake stage consists of 2 packets; one from the
+	handset and one from the quadcopter.
+
+3.1.5. Level 5 - Tx/Rx Power
+
+	Once the Handshake 2 exchange has completed, the controller
+	must set the appropriate Transmit and Receive power settings
+	using the \x28 register. Refer to Chapter 19 of the
+	A7105 datasheet for value charts.
+
+	This handshake stage does not consist of any transmitted
+	packets.
+
+3.1.6. Level 6 - Handshake 3
+
+	With the Tx/Rx power set, an lock-step escalating handshake
+	procedes between the handshake and quad. This stage consists
+	of 19 packets in total.
+
+	This final handshake uses a modified version of the Discovery 
+	packet structure, with a slightly different layout for the 
+	handset vs the quadcopter's packets.
+
+3.1.6.1. Handshake 3 HANDSET Packet Structure
+
+		                     1         
+		 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 
+		+-+-+-+-----+-----------------+-+
+		|A|B|C|  D  |        E        |F|
+		+-+-+-+-----+-----------------+-+
+
+	Level 6 Quadcopter Binding Packet Data Structure
+		HANDSET Packets - Figure 3.
+
+	Tag  Len  Description
+	---  ---  -----------
+	 A    1   Always \x09 for Handset packets.
+	 B    1   The selected channel ID (see section 2.2.4).
+	 C    1   Incrementing binding state (starting at \x00).
+	 D    3   Last 3 bytes of Random Session ID.
+	 E    9   NULL - unused.
+	 F    1   CHECKSUM (see section X)
+
+	Starting at \x00, byte 2 (tag C above) increments by 1 each
+	binding packet acknowledged by the Quad, until it reaches
+	\x09.
+
+3.1.6.2. Handshake 3 QUADCOPTER Packet Structure
+
+		                     1         
+		 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 
+		+-+-+-------+-+-+-------------+-+
+		|A|B|   C   |D|E|    F        |G|
+		+-+-+-------+-+-+-------------+-+
+
+	Level 6 Quadcopter Binding Packet Data Structure
+		QUADCOPTER Packets - Figure 4.
+
+	Tag  Len  Description
+	---  ---  -----------
+	 A    1   Always \x0A for Quadcopter packets.
+	 B    1   Incrementing binding state (starting at \x01).
+	 C    4   Random 4-byte Session ID.
+	 D    1   Always \x03 in testing.
+	 E    1   Always \x07 in testing.
+	 F    7   NULL - unused.
+	 G    1   CHECKSUM (see section X)
+
+    Starting at \x01, byte 1 (tag B above) increments by 1 in 
+    each binding packet acknowlegement by the Quad, until it 
+    reaches \x09.
+
+    The first and last Level 6 binding packet is sent by the 
+    handset.
+
+4. Flight Control Specification
+
+4.1. Flight Control Packet Timing Characteristics
+
+	Once the binding sequence in completed, the handset commences
+	sending flight control packets at an interval of every 10ms.
+	Packets are sent regardless of control values.
+
+4.2. Flight Control Packet Structure
+
+		                     1         
+		 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 
+		+-+-+-+-+-+-+-+-+-+-+-+-------+-+
+		|A|B|C|D|E|F|G|H|I|J|K|   L   |M|
+		+-+-+-+-+-+-+-+-+-+-+-+-------+-+
+
+		   Flight Packet Data Structure
+			       Figure 5.
+
+	Tag  Len  Description
+	---  ---  -----------
+	 A    1   Always set to \x20 for flight control packets.
+	 B    1   NULL
+	 C    1   Throttle
+	 D    1   NULL
+	 E    1   Yaw
+	 F    1   NULL
+	 G    1   Pitch
+	 H    1   NULL
+	 I    1   Roll
+	 J    1   Additional Control Flags
+	 K    1   Always set to \x19 in testing.
+	 L    4   NULL
+	 M    1   CHECKSUM (see section X)
+
+4.3. Flight Control Definition
+
+4.3.1. Throttle
+
+	Throttle control is represented by a linear decimal value
+	between 0 and 255. Default setting is 0.
+
+	 <--- Low Throttle -------------------- High Throttle --->
+	|---------------------------------------------------------|
+	0                                                        255
+
+	Throttle control is not affected by Expert mode.
+
+4.3.2. Yaw
+
+	Yaw control is represented by a linear decimal value between
+	0 and 255, centered on 128.
+	
+	 <---------Left Turn--------> <--------Right Turn-------->
+	|----------------------------+----------------------------|
+	0             ^              ^              ^           255
+	             64             128            192
+
+4.3.2.1. Yaw (Default mode)
+
+	In default mode, Yawing is limited to +/-64 from the center
+	point (128). The byte range for default mode Yaw is:
+
+	                  \x64 <- \x80 -> \xC0 
+
+4.3.2.2. Yaw (Expert mode)
+
+	In expert mode, Yawing is unlocked and has the range of
+	+/-128 from the center. The byte range for expert mode Yaw is:
+
+	                  \x00 <- \x80 -> \xFF	
+
+4.3.3. Pitch
+
+	Pitch control is represented by a linear decimal value between
+	0 and 255, centered on 128.
+	
+	 <-------Pitch Forward------> <------Pitch Backward----->
+	|----------------------------+----------------------------|
+	0             ^              ^              ^           255
+	             64             128            192
+
+4.3.3.1. Pitch (Default mode)
+
+	In default mode, Pitch is limited to +/-64 from the center
+	point (128). The byte range for default mode pitch is:
+
+	                  \x64 <- \x80 -> \xC0 
+
+4.3.3.2. Pitch (Expert mode)
+
+	In expert mode, Pitch is unlocked and has the range of +/-128
+	from the center. The byte range for expert mode Pitch is:
+
+	                  \x00 <- \x80 -> \xFF	
+
+4.3.4. Roll
+
+	Roll control is represented by a linear decimal value between
+	0 and 255, centered on 128.
+	
+	 <---------Roll Right-------> <---------Roll Left-------->
+	|----------------------------+----------------------------|
+	0             ^              ^              ^           255
+	             64             128            192
+
+4.3.4.1. Roll (Default mode)
+
+	In default mode, Roll is limited to +/-64 from the center
+	point (128). The byte range for default mode roll is:
+
+	                  \x64 <- \x80 -> \xC0 
+
+4.3.4.2. Roll (Expert mode)
+
+	In expert mode, Roll is unlocked and has the range of +/-128
+	from the center. The byte range for expert mode Roll is:
+
+	                  \x00 <- \x80 -> \xFF	
+
+4.3.5. Trim Control
+
+	Trim control on the Hubsan X4 is acheived by adjusting the
+	default center value of each control axis.
+
+4.3.6. Additional Control Flags
+
+	Some additional flight controls may be configured by setting
+	certain flag bits in byte 9 of the flight control packets.
+	At the time of writing, only one of these is known.
+
+	Bit Position:   0  1  2  3  4  5  6  7
+	                ----------------------
+	  Bit Values:   0  0  0  0  1  1  1  0  =  Hex: \x0E
+
+
+4.3.6.1. Toggle Quadcopter LEDs on/off
+
+	Bit 5 appears to toggle the Quad LEDs on (1), and off (0).
+
+	e.g. 
+	  \x0E (00001110) = LEDs ON. \x0A (00001010) = LEDs OFF.
+
+	
+[END]
