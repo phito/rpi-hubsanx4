@@ -30,13 +30,6 @@ def init():
     # set GIO in SDO, signal not inverted and output enabled
     set_register(Registers.GPIO1, 0b011001)
 
-def setup():
-    strobe(State.STANDBY)
-    __setup_registers()
-    __calibrate()
-    set_power(Power._30mW)
-    strobe(State.STANDBY)
-
 def write_data(data):
     # reset write pointer
     strobe(State.RST_WRPTR)
@@ -79,7 +72,7 @@ def set_channel(channel):
 def __clock():
     return int(time.time() * 1000)
 
-def __calibrate():
+def calibrate():
     # IF filter bank calibration
     __calibrate_if()
     __calibrate_vco(0x0)
@@ -122,33 +115,3 @@ def __calibrate_vco(channel):
     # calibration failed
     if (result & (1 << 3)) != 0:
         raise Exception('VCO calibration failed')
-
-def __setup_registers():
-    # auto RSSI measurement, auto IF Offset, FIFO mode enabled
-    set_register(Registers.MODE_CTL, 0b01100011)
-    # set FIFO length to 16 bytes (0x0f + 1)
-    set_register(Registers.FIFO1, 0b1111);
-    # use crystal oscillator, CLK divider = /2.
-    set_register(Registers.CLOCK, 0b0101);
-
-    # sanity check
-    if get_register(Registers.CLOCK) != 0x05:
-      raise Exception('Sanity check failed. Check wiring.')
-
-    # set data rate to 25kbps.
-    set_register(Registers.DATA_RATE, 0b0100);
-    # frequency deviation: 186KHz
-    set_register(Registers.TX2, 0b00101011);
-    # BPF bandwidth = 500 KHz.
-    set_register(Registers.RX, 0b01100010);
-    # manual VGA, Mixer Gain: 24dB, LNA gain: 24dB.
-    set_register(Registers.RX_GAIN1, 0b10000000);
-    # set some reserved constants
-    set_register(Registers.RX_GAIN4, 0b1010);
-    # select ID code length of 4, preamble length of 4
-    set_register(Registers.CODE1, 0b0111);
-    # set demodulator DC estimation average mode,
-    # ID code error tolerance = 1 bit, 16 bit preamble pattern detection length
-    set_register(Registers.CODE2, 0b00010111);
-    # set constants
-    set_register(Registers.RX_TEST1, 0b01000111);

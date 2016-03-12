@@ -8,13 +8,12 @@ import time
 if __name__ == "__main__":
     logging.basicConfig(level=logging.DEBUG)
     a7105.init()
-    a7105.setup()
-    hubs = Hubsan(1)
     logging.info('A7105 initialized.')
-    hubs.bind()
-    hubs.safety()
+    quad = Hubsan()
+    quad.bind()
     logging.info('Bound to Hubsanx4')
-    while True:
-        hubs.control(0xA0, 128, 128, 128, False)
-        time.sleep(0.01)
+    quad.throttle = 0.5
+
+    raw_input("Press Enter to continue...")
+    quad.stop()
     GPIO.cleanup()
