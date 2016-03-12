@@ -12,7 +12,7 @@ if __name__ == "__main__":
     quad = Hubsan()
     quad.bind()
     logging.info('Bound to Hubsanx4')
-    quad.throttle = 0.5
+    quad.throttle = 0
 
     raw_input("Press Enter to continue...")
     quad.stop()

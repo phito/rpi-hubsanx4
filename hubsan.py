@@ -13,7 +13,7 @@ def crc(packet):
         sum += b
     return (256 - (sum % 256)) & 0xff
 
-# linear interpolation
+""" linear interpolation """
 def lerp(t, min, max):
     return int(round(min + t * (max - min)))
 
@@ -25,6 +25,7 @@ class Hubsan:
     CHANNELS = [ 0x14, 0x1e, 0x28, 0x32, 0x3c, 0x46, 0x50, 0x5a, 0x64, 0x6e, 0x78, 0x82 ]
 
     def __init__(self):
+        self.__thread = None
         self.__running = False
         self.throttle = 0
         self.yaw = 0.5
@@ -91,7 +92,8 @@ class Hubsan:
         self.__safety()
 
         # start the control thread
-        threading.Thread(target=self.__worker).start()
+        __thread = threading.Thread(target=self.__worker)
+        __thread.start()
 
     """ resume a connection with a quadcopter """
     def resume(self, session_id, channel):
@@ -116,7 +118,9 @@ class Hubsan:
 
     """ stops the worker thread """
     def stop(self):
-        self.__running = False
+        if self.__thread != None:
+            self.__running = False
+            self.__thread.join()
 
     """ sends a control packet every 10ms """
     def __worker(self):
