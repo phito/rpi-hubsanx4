@@ -1,25 +1,14 @@
 from hubsan import Hubsan
 import RPi.GPIO as GPIO
 import a7105
-import curses, curses.panel
+import curses
 import time
-import sys
-
-class StdOutWrapper:
-    text = ""
-    def write(self,txt):
-        self.text += txt
-        self.text = '\n'.join(self.text.split('\n')[-30:])
-    def get_text(self,beg,end):
-        return '\n'.join(self.text.split('\n')[beg:end])
 
 precision = 0.02
 quad = None
 selection = 0
-std_wrapper = StdOutWrapper()
 
 def display(stdscr):
-    global std_wrapper
     stdscr.clear()
     stdscr.addstr(0, 0, 'Throttle:')
     stdscr.addstr(0, 11, '< {0:.2f} >'.format(quad.throttle), curses.A_REVERSE if selection == 0 else 0)
